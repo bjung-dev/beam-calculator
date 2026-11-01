@@ -1,6 +1,10 @@
 # Beam Calculator
 
-An interactive web app that finds the support reactions of a statically determinate beam, then draws its shear, bending-moment, stress and strain diagrams. It also explains the mechanics behind each step. Built in Python with [Streamlit](https://streamlit.io) and [Plotly](https://plotly.com/python/).
+An interactive website that finds the support reactions of a statically determinate beam, then draws its shear, bending-moment, stress and strain diagrams. It also explains the mechanics behind each step.
+
+**Live site: https://bjung-dev.github.io/beam-calculator/**
+
+The website is plain HTML, CSS and JavaScript (with [Plotly.js](https://plotly.com/javascript/) for charts and [KaTeX](https://katex.org) for equations). Everything runs in the visitor's browser, with no server. The original Python version, built with [Streamlit](https://streamlit.io), is still included and gives identical results.
 
 ## Features
 
@@ -10,7 +14,8 @@ An interactive web app that finds the support reactions of a statically determin
 - **Diagrams:** shear force V(x), bending moment M(x), and bending stress and strain at the top and bottom fibers, with the maximum values labeled
 - **Inside the beam:** a stress map over the beam's side view, plus the stress and strain through the depth at any cut you choose
 - **Cross sections:** rectangle, I-beam, solid circle or round tube, in steel, aluminum, wood, concrete or a custom material
-- **Mathematical models tab:** the derivations, plus a worked example that uses your current beam
+- **The math tab:** the derivations, plus a worked example that uses your current beam
+- **Works on phones** and follows your system's light or dark mode
 
 ## The mechanics
 
@@ -29,7 +34,7 @@ The stress and strain steps go slightly past a statics course, into the first to
 
 ## Validation
 
-The tests in [`tests/test_beam.py`](tests/test_beam.py) check the calculator against textbook results:
+The same textbook checks run against both versions: [`tests/beam.test.js`](tests/beam.test.js) for the website and [`tests/test_beam.py`](tests/test_beam.py) for the Python version.
 
 | Check | Expected result |
 |---|---|
@@ -45,18 +50,39 @@ The tests in [`tests/test_beam.py`](tests/test_beam.py) check the calculator aga
 
 ## Running locally
 
+**Website.** The page loads its code as JavaScript modules, which browsers won't open straight from a file, so serve the folder:
+
+```bash
+python -m http.server 8000
+```
+
+Then open http://localhost:8000/docs/ for the site and http://localhost:8000/tests/ to run the JavaScript tests.
+
+**Python version.**
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate        # Windows  (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
 streamlit run app.py          # opens http://localhost:8501
-pytest                        # run the tests
+pytest                        # run the Python tests
 ```
+
+## Publishing
+
+The site is served by GitHub Pages from the `docs/` folder of the `main` branch (Settings → Pages → Deploy from a branch → `main` / `/docs`). Every push to `main` updates the live site within a minute or two.
 
 ## Project structure
 
 ```
-beam.py              Loads, supports, reactions, shear/moment diagrams, sections, stress and strain
-app.py               Streamlit user interface (calculator + mathematical models tabs)
-tests/               Validation tests (pytest)
+docs/                The website
+  index.html         Page layout and the math tab's text
+  style.css          Styles, including light and dark themes
+  beam.js            Mechanics: reactions, shear/moment diagrams, sections, stress and strain
+  app.js             Inputs, charts and the worked example
+tests/
+  beam.test.js       Website tests (open tests/index.html through a local server)
+  test_beam.py       Python tests (pytest)
+beam.py              Python version of the mechanics
+app.py               Python version of the interface (Streamlit)
 ```

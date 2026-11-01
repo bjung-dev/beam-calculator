@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beam Calculator</title>
+  <meta name="description" content="Support reactions, shear and bending-moment diagrams, and bending stress and strain for statically determinate beams.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='12' width='28' height='5' rx='1' fill='%232a78d6'/><path d='M6 17l-4 8h8z' fill='%23898781'/><circle cx='26' cy='21' r='4' fill='%23898781'/></svg>">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.0/plotly.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/contrib/auto-render.min.js" defer></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="12" width="28" height="5" rx="1" fill="currentColor"/><path d="M6 17l-4 8h8z" opacity=".55" fill="currentColor"/><circle cx="26" cy="21" r="4" opacity=".55" fill="currentColor"/></svg>
+      <span>Beam Calculator</span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="calc">Calculator</button>
+      <button role="tab" aria-selected="false" data-tab="math">The math</button>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <!-- Inputs -->
+    <aside class="sidebar">
+      <label class="field">
+        <span>Start from an example</span>
+        <select id="example"></select>
+      </label>
+
+      <h2>Beam and supports</h2>
+      <label class="field">
+        <span>Length, L (m)</span>
+        <input id="L" type="number" min="0.1" max="100" step="0.5">
+      </label>
+      <div class="field">
+        <span>Support type</span>
+        <div class="segmented" id="support">
+          <button type="button" data-value="simply supported">Pin + roller</button>
+          <button type="button" data-value="cantilever">Cantilever</button>
+        </div>
+      </div>
+      <div id="ss-fields">
+        <p class="hint">Move a support in from the end to make an overhang.</p>
+        <div class="row2">
+          <label class="field"><span>Pin at x (m)</span><input id="pinX" type="number" min="0" step="0.25"></label>
+          <label class="field"><span>Roller at x (m)</span><input id="rollerX" type="number" min="0" step="0.25"></label>
+        </div>
+      </div>
+      <div id="cant-fields" class="field">
+        <span>Fixed end</span>
+        <div class="segmented" id="fixedEnd">
+          <button type="button" data-value="left">Left</button>
+          <button type="button" data-value="right">Right</button>
+        </div>
+      </div>
+
+      <h2>Cross section</h2>
+      <label class="field">
+        <span>Shape</span>
+        <select id="shape">
+          <option>Rectangle</option>
+          <option>I-beam</option>
+          <option>Circle</option>
+          <option>Round tube</option>
+        </select>
+      </label>
+      <div id="dims" class="row2"></div>
+
+      <h2>Material</h2>
+      <label class="field">
+        <span>Material</span>
+        <select id="material"></select>
+      </label>
+      <label class="field" id="E-field">
+        <span>Young's modulus, E (GPa)</span>
+        <input id="E" type="number" min="0.1" step="1">
+      </label>
+    </aside>
+
+    <main>
+      <!-- Calculator tab -->
+      <section id="tab-calc" class="tab-panel">
+        <div class="card">
+          <div class="card-head">
+            <h2>Loads</h2>
+            <p class="hint">Forces and distributed loads are <b>positive downward</b>. Moments are <b>positive counterclockwise</b> (↺). Positions are measured from the left end.</p>
+          </div>
+          <div class="loads">
+            <div class="load-group">
+              <h3>Point loads</h3>
+              <table class="load-table" id="points-table">
+                <thead><tr><th>x (m)</th><th>P (kN) ↓</th><th></th></tr></thead>
+                <tbody></tbody>
+              </table>
+              <button type="button" class="add" data-add="points">+ Add point load</button>
+            </div>
+            <div class="load-group wide">
+              <h3>Distributed loads</h3>
+              <table class="load-table" id="dists-table">
+                <thead><tr><th>from (m)</th><th>to (m)</th><th>w start (kN/m) ↓</th><th>w end (kN/m) ↓</th><th></th></tr></thead>
+                <tbody></tbody>
+              </table>
+              <button type="button" class="add" data-add="dists">+ Add distributed load</button>
+            </div>
+            <div class="load-group">
+              <h3>Applied moments</h3>
+              <table class="load-table" id="moments-table">
+                <thead><tr><th>x (m)</th><th>M (kN·m) ↺</th><th></th></tr></thead>
+                <tbody></tbody>
+              </table>
+              <button type="button" class="add" data-add="moments">+ Add moment</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="error" class="error" role="alert" hidden></div>
+
+        <div id="results">
+          <div class="card">
+            <div class="card-head">
+              <h2>Free-body diagram</h2>
+              <p class="hint"><span class="key load">Applied loads</span> <span class="key reaction">Support reactions</span></p>
+            </div>
+            <div id="fbd" class="chart"></div>
+          </div>
+
+          <div class="stats" id="reaction-stats"></div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>Shear, moment, stress and strain</h2>
+              <p class="hint">Point loads make the shear diagram jump; couples make the moment diagram jump. Positive (sagging) moment compresses the top fiber and stretches the bottom fiber.</p>
+            </div>
+            <div id="diagrams" class="chart"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>Stress inside the beam</h2>
+              <p class="hint">Side view of the beam (depth exaggerated). <span class="key tension">Tension</span> <span class="key compression">Compression</span> The neutral axis (y = 0) carries no bending stress.</p>
+            </div>
+            <div id="heat" class="chart"></div>
+            <label class="field slider">
+              <span>Cut the beam at <b>x = <output id="xCut-out"></output> m</b></span>
+              <input id="xCut" type="range" min="0" step="0.01">
+            </label>
+            <div class="stats compact" id="cut-stats"></div>
+            <div id="cut" class="chart"></div>
+            <p class="hint">Stress and strain vary linearly through the depth: zero at the neutral axis (N.A.) and largest at the top and bottom fibers.</p>
+          </div>
+
+          <div class="stats" id="section-stats"></div>
+
+          <details class="card">
+            <summary>Diagram data</summary>
+            <div class="table-scroll"><table id="data-table" class="data"></table></div>
+          </details>
+        </div>
+      </section>
+
+      <!-- Math tab -->
+      <section id="tab-math" class="tab-panel prose" hidden>
+        <h2>1. Equilibrium</h2>
+        <p>A beam that is not moving is in <b>static equilibrium</b>. For loads in the plane of the beam, two equations must hold:</p>
+        $$\sum F_y = 0 \qquad\qquad \sum M_{\text{any point}} = 0$$
+        <p>A pin gives one vertical reaction and a roller gives one, so a simply supported beam has two unknowns. A fixed support gives a vertical force <i>and</i> a moment, which is again two unknowns. Two equations and two unknowns means these beams are <b>statically determinate</b>: the reactions come from statics alone. (Horizontal reactions are zero here because every load is vertical.)</p>
+        <p><b>Sign conventions:</b> loads are positive downward, reactions positive upward, and moments positive counterclockwise.</p>
+
+        <h2>2. Distributed loads → equivalent point loads</h2>
+        <p>For the equilibrium equations, a distributed load \(w(x)\) can be replaced by a single <b>resultant</b> force equal to the <i>area</i> under the load diagram, acting at the area's <i>centroid</i>. A linearly varying (trapezoidal) load splits into a rectangle and a triangle:</p>
+        $$F_{\text{rect}} = w_1 L_w \;\;\text{at}\;\; \tfrac{1}{2}L_w \qquad F_{\text{tri}} = \tfrac{1}{2}(w_2 - w_1) L_w \;\;\text{at}\;\; \tfrac{2}{3}L_w$$
+        <p>Here \(L_w\) is the loaded length and the distances are measured from the start of the load.</p>
+
+        <h2>3. Solving for the reactions</h2>
+        <div id="math-reactions"></div>
+
+        <h2>4. Shear and bending moment (method of sections)</h2>
+        <p>Cut the beam at any position \(x\) and draw a free-body diagram of the piece on the left. The cut face carries an internal <b>shear force</b> \(V\) and <b>bending moment</b> \(M\), which keep that piece in equilibrium:</p>
+        $$V(x) = \sum_{\text{left of } x} (\text{upward forces}) \qquad M(x) = \sum_{\text{left of } x} F\,(x - x_F) \;-\; \sum_{\text{left of } x} C$$
+        <p>Positive \(M\) means <b>sagging</b> (the beam bends into a smile). Repeating the cut at every \(x\) gives the diagrams. Three shortcuts help you check them by hand:</p>
+        <ul>
+          <li>\(\dfrac{dV}{dx} = -w(x)\): the slope of the shear diagram is the load intensity, so shear is flat with no load, linear under a uniform load, and a parabola under a triangular load.</li>
+          <li>\(\dfrac{dM}{dx} = V(x)\): the slope of the moment diagram is the shear, so <b>M is largest where V crosses zero</b>.</li>
+          <li>A point load makes \(V\) jump by the load. A couple makes \(M\) jump by the couple (clockwise jumps up, counterclockwise jumps down).</li>
+        </ul>
+
+        <h2>5. Stress and strain from bending</h2>
+        <p>This step goes slightly past statics, into the opening topic of <i>mechanics of materials</i>. Once \(M\) is known, the <b>flexure formula</b> gives the normal stress at height \(y\) above the neutral axis (the centroid of the cross section):</p>
+        $$\sigma = -\frac{M\,y}{I} \qquad\Longrightarrow\qquad \sigma_{\max} = \frac{|M|\,c}{I}$$
+        <p>\(I\) is the cross section's <b>second moment of area</b> (a geometric property, computed like a centroid) and \(c\) is the distance to the farthest fiber. <b>Hooke's law</b> turns stress into strain, the fractional stretch of the material:</p>
+        $$\varepsilon = \frac{\sigma}{E}$$
+        <table class="data">
+          <thead><tr><th>Shape</th><th>\(I\)</th><th>\(c\)</th></tr></thead>
+          <tbody>
+            <tr><td>Rectangle \(b \times h\)</td><td>\(bh^3/12\)</td><td>\(h/2\)</td></tr>
+            <tr><td>Circle, diameter \(d\)</td><td>\(\pi d^4/64\)</td><td>\(d/2\)</td></tr>
+            <tr><td>Tube, \(D\) outside, \(d\) inside</td><td>\(\pi (D^4 - d^4)/64\)</td><td>\(D/2\)</td></tr>
+            <tr><td>I-beam</td><td>\([b h^3 - (b - t_w)(h - 2t_f)^3]/12\)</td><td>\(h/2\)</td></tr>
+          </tbody>
+        </table>
+        <p>The <b>average shear stress</b> \(\tau_{avg} = V/A\) is the statics-level estimate of the shear stress. The true distribution through the depth is a mechanics-of-materials topic.</p>
+        <p><b>Assumptions:</b> the beam is straight and slender, deflections are small, the material is linear elastic, and the cross section is symmetric about its horizontal axis.</p>
+
+        <h2>Worked example: your current beam</h2>
+        <div id="math-example"></div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer">
+    Statics-level beam analysis · <a href="https://github.com/bjung-dev/beam-calculator">Source on GitHub</a>
+  </footer>
+</body>
+</html>
